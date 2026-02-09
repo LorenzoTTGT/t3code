@@ -177,6 +177,30 @@ describe("runtimeApiServer", () => {
     client.socket.close();
   });
 
+  it("ignores malformed client messages and continues processing", async () => {
+    const server = await startRuntimeApiServer({
+      port: 0,
+      launchCwd: process.cwd(),
+    });
+    servers.push(server);
+
+    const client = await connectClient(server.wsUrl);
+    await client.nextMessage();
+
+    client.socket.send("not-json");
+    client.socket.send(JSON.stringify({ type: "request", id: "", method: "" }));
+
+    const response = await sendRequest(
+      client.socket,
+      client.nextMessage,
+      "todos-after-malformed",
+      "todos.list",
+    );
+    expect(response.ok).toBe(true);
+
+    client.socket.close();
+  });
+
   it("accepts buffer-encoded websocket request payloads", async () => {
     const server = await startRuntimeApiServer({
       port: 0,
