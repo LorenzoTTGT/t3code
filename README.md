@@ -82,7 +82,7 @@ Runtime command semantics:
 - In-flight renderer requests now surface unauthorized/replacement disconnect causes explicitly.
 - Renderer also fails in-flight requests immediately on websocket `error` events (without waiting for close) for faster feedback.
 - After reconnect, renderer ignores stale events from prior sockets (including provider and agent streams) to avoid cross-connection state corruption.
-- Initial websocket connect failures now include detailed diagnostics from socket/open and constructor failures (including nested or string error payload messages, with safe fallback for malformed/cyclic payloads).
+- Initial websocket connect failures now include detailed diagnostics from socket/open and constructor failures (including nested or string error payload messages, with bounded-depth fallback for malformed/cyclic payloads).
 - Subsequent requests automatically reconnect after close/error disconnects, including idle (no pending request) error scenarios.
 - Renderer now proactively resets the websocket after request send failures, rejects any in-flight requests, and reconnects cleanly on later requests.
 - Send-failure request errors now include non-Error payload details when available (for clearer diagnostics).
