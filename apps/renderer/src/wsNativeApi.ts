@@ -12,14 +12,11 @@ import {
   WS_CLOSE_REASONS,
   WS_EVENT_CHANNELS,
   agentSessionIdSchema,
-  agentExitSchema,
   appBootstrapResultSchema,
   appHealthResultSchema,
-  outputChunkSchema,
   providerSessionListSchema,
   providerSessionSchema,
   providerTurnStartResultSchema,
-  providerEventSchema,
   terminalCommandResultSchema,
   todoListSchema,
   wsServerMessageSchema,
@@ -376,34 +373,22 @@ class WsNativeApiClient {
 
   private handleEvent(message: WsEventMessage) {
     if (message.channel === WS_EVENT_CHANNELS.providerEvent) {
-      const parsed = providerEventSchema.safeParse(message.payload);
-      if (!parsed.success) {
-        return;
-      }
       for (const listener of this.providerEventListeners) {
-        listener(parsed.data as ProviderEvent);
+        listener(message.payload as ProviderEvent);
       }
       return;
     }
 
     if (message.channel === WS_EVENT_CHANNELS.agentOutput) {
-      const parsed = outputChunkSchema.safeParse(message.payload);
-      if (!parsed.success) {
-        return;
-      }
       for (const listener of this.agentOutputListeners) {
-        listener(parsed.data as OutputChunk);
+        listener(message.payload as OutputChunk);
       }
       return;
     }
 
     if (message.channel === WS_EVENT_CHANNELS.agentExit) {
-      const parsed = agentExitSchema.safeParse(message.payload);
-      if (!parsed.success) {
-        return;
-      }
       for (const listener of this.agentExitListeners) {
-        listener(parsed.data as AgentExit);
+        listener(message.payload as AgentExit);
       }
     }
   }
