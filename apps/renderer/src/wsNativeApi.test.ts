@@ -2806,6 +2806,20 @@ describe("wsNativeApi", () => {
       JSON.stringify({
         type: "event",
         channel: "provider:event",
+        payload: {
+          sessionId: "sess-1",
+        },
+      }),
+    );
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+    expect(received).toHaveLength(0);
+
+    socket?.emitMessage(
+      JSON.stringify({
+        type: "event",
+        channel: "provider:event",
         payload,
       }),
     );
@@ -2940,6 +2954,34 @@ describe("wsNativeApi", () => {
       }),
     );
     await expect(request).resolves.toEqual([]);
+
+    socket?.emitMessage(
+      JSON.stringify({
+        type: "event",
+        channel: "agent:output",
+        payload: {
+          sessionId: "agent-session-1",
+          stream: "invalid-stream",
+          data: "ignored-invalid",
+        },
+      }),
+    );
+    socket?.emitMessage(
+      JSON.stringify({
+        type: "event",
+        channel: "agent:exit",
+        payload: {
+          sessionId: "agent-session-1",
+          code: "0",
+          signal: null,
+        },
+      }),
+    );
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+    expect(outputEvents).toHaveLength(0);
+    expect(exitEvents).toHaveLength(0);
 
     socket?.emitMessage(
       JSON.stringify({

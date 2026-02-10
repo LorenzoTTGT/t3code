@@ -13,6 +13,9 @@ import {
   WS_CLOSE_CODES,
   WS_CLOSE_REASONS,
   WS_EVENT_CHANNELS,
+  agentExitSchema,
+  outputChunkSchema,
+  providerEventSchema,
   wsServerMessageSchema,
 } from "@acme/contracts";
 
@@ -343,22 +346,34 @@ class WsNativeApiClient {
 
   private handleEvent(message: WsEventMessage) {
     if (message.channel === WS_EVENT_CHANNELS.providerEvent) {
+      const parsed = providerEventSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        return;
+      }
       for (const listener of this.providerEventListeners) {
-        listener(message.payload as ProviderEvent);
+        listener(parsed.data as ProviderEvent);
       }
       return;
     }
 
     if (message.channel === WS_EVENT_CHANNELS.agentOutput) {
+      const parsed = outputChunkSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        return;
+      }
       for (const listener of this.agentOutputListeners) {
-        listener(message.payload as OutputChunk);
+        listener(parsed.data as OutputChunk);
       }
       return;
     }
 
     if (message.channel === WS_EVENT_CHANNELS.agentExit) {
+      const parsed = agentExitSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        return;
+      }
       for (const listener of this.agentExitListeners) {
-        listener(message.payload as AgentExit);
+        listener(parsed.data as AgentExit);
       }
     }
   }
