@@ -168,6 +168,9 @@ async function main() {
     if (page.headers.get("x-content-type-options") !== "nosniff") {
       throw new Error("Smoke test failed: expected x-content-type-options=nosniff.");
     }
+    if ((page.headers.get("x-frame-options") ?? "").toUpperCase() !== "DENY") {
+      throw new Error("Smoke test failed: expected x-frame-options=DENY.");
+    }
     if ((page.headers.get("referrer-policy") ?? "").toLowerCase() !== "no-referrer") {
       throw new Error("Smoke test failed: expected referrer-policy=no-referrer.");
     }
@@ -240,6 +243,9 @@ async function main() {
     }
     if ((postPage.headers.get("x-content-type-options") ?? "").toLowerCase() !== "nosniff") {
       throw new Error("Smoke test failed: expected nosniff on POST response.");
+    }
+    if ((postPage.headers.get("x-frame-options") ?? "").toUpperCase() !== "DENY") {
+      throw new Error("Smoke test failed: expected x-frame-options=DENY on POST response.");
     }
     if ((postPage.headers.get("referrer-policy") ?? "").toLowerCase() !== "no-referrer") {
       throw new Error("Smoke test failed: expected referrer-policy=no-referrer on POST response.");
