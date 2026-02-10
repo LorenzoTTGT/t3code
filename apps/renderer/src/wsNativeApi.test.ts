@@ -291,6 +291,24 @@ describe("wsNativeApi", () => {
     await expect(recoveryRequest).resolves.toEqual([]);
   });
 
+  it("propagates string send-failure details to existing pending requests", async () => {
+    setWindowSearch("?ws=ws%3A%2F%2F127.0.0.1%3A4506");
+    const { getOrCreateWsNativeApi } = await import("./wsNativeApi");
+    const api = getOrCreateWsNativeApi();
+
+    const firstPending = api.todos.list();
+    const socket = await waitForSocket();
+    await waitForCondition(() => socket.sentMessages.length === 1);
+
+    MockWebSocket.failSend = true;
+    MockWebSocket.failSendError = "later-string-send-failure";
+    const secondPending = api.app.health();
+    await expect(secondPending).rejects.toThrow(
+      "Failed to send runtime request 'app.health': later-string-send-failure",
+    );
+    await expect(firstPending).rejects.toThrow("websocket errored (later-string-send-failure)");
+  });
+
   it("sends app.health requests to runtime", async () => {
     setWindowSearch("?ws=ws%3A%2F%2F127.0.0.1%3A4411");
     const { getOrCreateWsNativeApi } = await import("./wsNativeApi");
