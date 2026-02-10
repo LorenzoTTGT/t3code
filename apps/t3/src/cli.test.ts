@@ -1007,6 +1007,12 @@ describe("ifRangeSatisfied", () => {
       ifRangeSatisfied("Thu, 01 Jan 2026 11:59:59 GMT", "\"etag\"", Date.parse("2026-01-01T12:00:01.000Z")),
     ).toBe(false);
   });
+
+  it("supports array-valued headers and rejects invalid date forms", () => {
+    const modifiedAt = Date.parse("2026-01-01T12:00:00.000Z");
+    expect(ifRangeSatisfied(["\"etag\""], "\"etag\"", modifiedAt)).toBe(true);
+    expect(ifRangeSatisfied("not-a-date", "\"etag\"", modifiedAt)).toBe(false);
+  });
 });
 
 describe("resolveStaticAssetReadTarget", () => {
