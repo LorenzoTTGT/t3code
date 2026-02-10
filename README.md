@@ -52,9 +52,10 @@ Runtime command semantics:
 ## Workspace layout
 
 - `/apps/t3`: CLI launcher + local WebSocket runtime server.
-- `/apps/desktop`: Runtime internals used by `t3` (no Electron app shell).
+- `/apps/desktop`: Runtime internals used by `t3` (provider orchestration and Codex app-server lifecycle; no Electron app shell).
 - `/apps/renderer`: React + Vite UI for session control, conversation, and protocol event stream.
 - `/packages/contracts`: shared Zod schemas + TypeScript types for WS protocol, provider events, and API contracts.
+- `/packages/runtime-core`: shared Node runtime services (`ProcessManager`, `TodoStore`) consumed by both `apps/t3` and `apps/desktop`.
 
 ## Codex prerequisites
 
