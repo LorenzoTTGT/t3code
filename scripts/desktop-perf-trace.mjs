@@ -256,6 +256,12 @@ function createMarkdownSummary({ tracePath, donePayload, summary, thresholds }) 
     "",
     `- Thread clicks: ${donePayload.interactions?.threadClicks ?? "n/a"}`,
     `- Typed chars: ${donePayload.interactions?.typedChars ?? "n/a"}`,
+    `- Benchmark thread ids exercised: ${
+      Array.isArray(donePayload.interactions?.benchmarkThreadIds) &&
+      donePayload.interactions.benchmarkThreadIds.length > 0
+        ? donePayload.interactions.benchmarkThreadIds.join(", ")
+        : "none"
+    }`,
     `- Model selected: ${donePayload.interactions?.selectedModel ?? "n/a"}`,
     `- Terminal opened by shortcut: ${donePayload.interactions?.terminal?.openedByShortcut ?? "n/a"}`,
     `- Terminal shortcut modifier: ${donePayload.interactions?.terminal?.modifierUsed ?? "n/a"}`,
