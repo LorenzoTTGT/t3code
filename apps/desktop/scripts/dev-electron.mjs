@@ -26,6 +26,7 @@ async function canConnect(host, probePort, timeoutMs = 1_000) {
 }
 
 function waitForDesktopBundles(timeoutMs) {
+  const FRESHNESS_GRACE_MS = 10_000;
   const startedAt = Date.now();
   const bundleFiles = [
     { path: "dist-electron/main.mjs", requireFresh: true },
@@ -48,7 +49,7 @@ function waitForDesktopBundles(timeoutMs) {
         }
         try {
           const stat = fs.statSync(bundleFile.path);
-          if (stat.mtimeMs < startedAt) {
+          if (stat.mtimeMs < startedAt - FRESHNESS_GRACE_MS) {
             stale.push(bundleFile.path);
           }
         } catch {
