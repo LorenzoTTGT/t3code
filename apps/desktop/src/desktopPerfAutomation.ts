@@ -409,7 +409,6 @@ async function seedRendererState(
   const script = `
     (() => {
       const key = "t3code:renderer-state:v7";
-      localStorage.setItem("t3code:perf-bootstrap-skip", "1");
       localStorage.setItem(key, JSON.stringify(${JSON.stringify(state)}));
       let projects = -1;
       let threads = -1;

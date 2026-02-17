@@ -256,7 +256,11 @@ function createWindow(): BrowserWindow {
   });
 
   if (isDevelopment) {
-    void window.loadURL(process.env.VITE_DEV_SERVER_URL as string);
+    const devUrl = new URL(process.env.VITE_DEV_SERVER_URL as string);
+    if (PERF_AUTOMATION_ENABLED) {
+      devUrl.searchParams.set("t3code_perf_automation", "1");
+    }
+    void window.loadURL(devUrl.toString());
     if (!PERF_AUTOMATION_ENABLED) {
       window.webContents.openDevTools({ mode: "detach" });
     }
@@ -264,7 +268,13 @@ function createWindow(): BrowserWindow {
     if (!fs.existsSync(WEB_ENTRY)) {
       throw new Error(`Web bundle missing at ${WEB_ENTRY}`);
     }
-    void window.loadFile(WEB_ENTRY);
+    if (PERF_AUTOMATION_ENABLED) {
+      void window.loadFile(WEB_ENTRY, {
+        query: { t3code_perf_automation: "1" },
+      });
+    } else {
+      void window.loadFile(WEB_ENTRY);
+    }
   }
 
   window.on("closed", () => {

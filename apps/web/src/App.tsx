@@ -129,7 +129,10 @@ function DesktopProjectBootstrap() {
 
   useEffect(() => {
     if (!isElectron || !api || bootstrappedRef.current) return;
-    if (window.localStorage.getItem("t3code:perf-bootstrap-skip") === "1") {
+
+    const perfAutomationSession =
+      new URLSearchParams(window.location.search).get("t3code_perf_automation") === "1";
+    if (perfAutomationSession) {
       bootstrappedRef.current = true;
       return;
     }
