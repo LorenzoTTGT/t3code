@@ -35,9 +35,6 @@ describe("stateEventsRepo", () => {
             },
             createdAt,
           }),
-          () => {
-            throw new Error("Expected Effect SQL client to be available");
-          },
         );
         const second = runWithSqlClient(
           db,
@@ -47,13 +44,10 @@ describe("stateEventsRepo", () => {
             payload: { projectId: "project-1" },
             createdAt,
           }),
-          () => {
-            throw new Error("Expected Effect SQL client to be available");
-          },
         );
 
-        const lastSeq = runWithSqlClient(db, readLastStateSeq, () => 0);
-        const events = runWithSqlClient(db, listStateEventsAfterSeq(first.seq - 1), () => []);
+        const lastSeq = runWithSqlClient(db, readLastStateSeq);
+        const events = runWithSqlClient(db, listStateEventsAfterSeq(first.seq - 1));
 
         expect(first.seq).toBeGreaterThan(0);
         expect(second.seq).toBeGreaterThan(first.seq);

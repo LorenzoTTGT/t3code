@@ -44,7 +44,6 @@ import {
   projectScriptsSchema,
   projectUpdateScriptsInputSchema,
   stateCatchUpInputSchema,
-  stateEventSchema,
   stateListMessagesInputSchema,
   stateMessageSchema,
   stateProjectSchema,
@@ -130,14 +129,6 @@ const METADATA_KEY_PROJECTS_JSON_IMPORTED = "migration.projects_json_imported";
 const METADATA_KEY_APP_SETTINGS = "app.settings.v1";
 const DEFAULT_TERMINAL_ID = "default";
 const DEFAULT_TERMINAL_HEIGHT = 280;
-
-interface StateEventRow {
-  seq: number;
-  event_type: string;
-  entity_id: string;
-  payload_json: string;
-  created_at: string;
-}
 
 interface ProviderEventInsertResult {
   inserted: boolean;
@@ -235,14 +226,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   listProjects(): ProjectListResult {
-    const payloads = this.runWithEffectSql(listProjectPayloadsEffect(), () => {
-      const rows = this.db
-        .prepare(
-          "SELECT data_json FROM documents WHERE kind = 'project' ORDER BY updated_at DESC, created_at DESC;",
-        )
-        .all() as Array<{ data_json: string }>;
-      return rows.map((row) => row.data_json);
-    });
+    const payloads = this.runWithEffectSql(listProjectPayloadsEffect());
 
     const projects: StateProject[] = [];
     for (const payload of payloads) {
@@ -292,12 +276,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
     }
 
     this.withTransaction((pendingEvents) => {
-      const threadPayloads = this.runWithEffectSql(listThreadPayloadsByProjectEffect(input.id), () => {
-        const threadRows = this.db
-          .prepare("SELECT data_json FROM documents WHERE kind = 'thread' AND project_id = ?;")
-          .all(input.id) as Array<{ data_json: string }>;
-        return threadRows.map((row) => row.data_json);
-      });
+      const threadPayloads = this.runWithEffectSql(listThreadPayloadsByProjectEffect(input.id));
       const threadIds: string[] = [];
       for (const payload of threadPayloads) {
         const parsed = this.parseJson(payload, stateThreadSchema);
@@ -306,9 +285,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         }
       }
 
-      this.runWithEffectSql(deleteDocumentsByProjectIdEffect(input.id), () => {
-        this.db.prepare("DELETE FROM documents WHERE project_id = ?;").run(input.id);
-      });
+      this.runWithEffectSql(deleteDocumentsByProjectIdEffect(input.id));
 
       const eventTime = nowIso();
       for (const threadId of threadIds) {
@@ -457,28 +434,15 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
     }
 
     this.withTransaction((pendingEvents) => {
-      this.runWithEffectSql(deleteDocumentsByThreadIdEffect(thread.id), () => {
-        this.db.prepare("DELETE FROM documents WHERE thread_id = ?;").run(thread.id);
-      });
-      this.runWithEffectSql(deleteDocumentByIdAndKindEffect(threadDocId(thread.id), "thread"), () => {
-        this.db
-          .prepare("DELETE FROM documents WHERE id = ? AND kind = 'thread';")
-          .run(threadDocId(thread.id));
-      });
+      this.runWithEffectSql(deleteDocumentsByThreadIdEffect(thread.id));
+      this.runWithEffectSql(deleteDocumentByIdAndKindEffect(threadDocId(thread.id), "thread"));
       this.appendStateEvent(pendingEvents, "thread.delete", thread.id, { threadId: thread.id }, nowIso());
     });
   }
 
   loadSnapshot(): StateBootstrapResult {
     const projects = this.listProjects();
-    const threadPayloads = this.runWithEffectSql(listThreadPayloadsEffect(), () => {
-      const threadRows = this.db
-        .prepare(
-          "SELECT data_json FROM documents WHERE kind = 'thread' ORDER BY updated_at DESC, created_at DESC;",
-        )
-        .all() as Array<{ data_json: string }>;
-      return threadRows.map((row) => row.data_json);
-    });
+    const threadPayloads = this.runWithEffectSql(listThreadPayloadsEffect());
 
     const threads: StateBootstrapThread[] = [];
     for (const payload of threadPayloads) {
@@ -518,31 +482,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
 
   catchUp(raw: StateCatchUpInput): StateCatchUpResult {
     const input = stateCatchUpInputSchema.parse(raw);
-    const events = this.runWithEffectSql(
-      listStateEventsAfterSeqEffect(input.afterSeq),
-      () => {
-        const rows = this.db
-          .prepare(
-            "SELECT seq, event_type, entity_id, payload_json, created_at FROM state_events WHERE seq > ? ORDER BY seq ASC;",
-          )
-          .all(input.afterSeq) as unknown as StateEventRow[];
-
-        const fallbackEvents: StateEvent[] = [];
-        for (const row of rows) {
-          const payload = this.tryParseJson(row.payload_json);
-          fallbackEvents.push(
-            stateEventSchema.parse({
-              seq: row.seq,
-              eventType: row.event_type,
-              entityId: row.entity_id,
-              payload,
-              createdAt: row.created_at,
-            }),
-          );
-        }
-        return fallbackEvents;
-      },
-    );
+    const events = this.runWithEffectSql(listStateEventsAfterSeqEffect(input.afterSeq));
 
     return buildStateCatchUpResult({
       events,
@@ -558,21 +498,8 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         limit: input.limit,
         offset: input.offset,
       }),
-      () => {
-        const rows = this.db
-          .prepare(
-            "SELECT data_json FROM documents WHERE kind = 'message' AND thread_id = ? ORDER BY sort_key ASC LIMIT ? OFFSET ?;",
-          )
-          .all(input.threadId, input.limit, input.offset) as Array<{ data_json: string }>;
-        return rows.map((row) => row.data_json);
-      },
     );
-    const total = this.runWithEffectSql(countMessagesForThreadEffect(input.threadId), () => {
-      const totalRow = this.db
-        .prepare("SELECT COUNT(1) AS total FROM documents WHERE kind = 'message' AND thread_id = ?;")
-        .get(input.threadId) as { total: number } | undefined;
-      return totalRow?.total ?? 0;
-    });
+    const total = this.runWithEffectSql(countMessagesForThreadEffect(input.threadId));
 
     const messages: StateMessage[] = [];
     for (const payload of payloads) {
@@ -995,11 +922,6 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
           if (!message) continue;
           this.runWithEffectSql(
             deleteDocumentByIdAndKindEffect(messageDocId(thread.id, message.id), "message"),
-            () => {
-              this.db
-                .prepare("DELETE FROM documents WHERE id = ? AND kind = 'message';")
-                .run(messageDocId(thread.id, message.id));
-            },
           );
           this.appendStateEvent(
             pendingEvents,
@@ -1019,11 +941,6 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         ) {
           this.runWithEffectSql(
             deleteDocumentByIdAndKindEffect(turnSummaryDocId(thread.id, summary.turnId), "turn_summary"),
-            () => {
-              this.db
-                .prepare("DELETE FROM documents WHERE id = ? AND kind = 'turn_summary';")
-                .run(turnSummaryDocId(thread.id, summary.turnId));
-            },
           );
           this.appendStateEvent(
             pendingEvents,
@@ -1138,12 +1055,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private readLastStateSeq(): number {
-    return this.runWithEffectSql(readLastStateSeqEffect, () => {
-      const row = this.db
-        .prepare("SELECT COALESCE(MAX(seq), 0) AS seq FROM state_events;")
-        .get() as { seq: number } | undefined;
-      return row?.seq ?? 0;
-    });
+    return this.runWithEffectSql(readLastStateSeqEffect);
   }
 
   private runDbTransaction<T>(fn: () => T): T {
@@ -1189,23 +1101,6 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         payload,
         createdAt,
       }),
-      () => {
-        const result = this.db
-          .prepare(
-            "INSERT INTO state_events (event_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?);",
-          )
-          .run(eventType, entityId, JSON.stringify(payload), createdAt) as {
-          lastInsertRowid?: number | bigint;
-        };
-        const seq = toSafeInteger(result.lastInsertRowid, 0);
-        return stateEventSchema.parse({
-          seq,
-          eventType,
-          entityId,
-          payload,
-          createdAt,
-        });
-      },
     );
     pendingEvents.push(nextEvent);
   }
@@ -1330,14 +1225,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private findThreadByRuntimeThreadId(runtimeThreadId: string): StateThread | null {
-    const payload = this.runWithEffectSql(findThreadPayloadByRuntimeThreadIdEffect(runtimeThreadId), () => {
-      const row = this.db
-        .prepare(
-          "SELECT data_json FROM documents WHERE kind = 'thread' AND json_extract(data_json, '$.codexThreadId') = ? LIMIT 1;",
-        )
-        .get(runtimeThreadId) as { data_json: string } | undefined;
-      return row?.data_json ?? null;
-    });
+    const payload = this.runWithEffectSql(findThreadPayloadByRuntimeThreadIdEffect(runtimeThreadId));
     if (!payload) return null;
     const parsed = this.parseJson(payload, stateThreadSchema);
     return parsed ? normalizeThread(parsed) : null;
@@ -1368,13 +1256,6 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
             sessionId: input.sessionId,
             turnId: input.turnId,
           }),
-          () =>
-            this.db.prepare(
-              `SELECT item_id, payload_json
-               FROM provider_events
-               WHERE session_id = ? AND turn_id = ? AND method = 'item/completed'
-               ORDER BY created_at DESC;`,
-            ).all(input.sessionId, input.turnId) as CompletedProviderItemRow[],
         ),
       );
     }
@@ -1385,27 +1266,11 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
             runtimeThreadId: input.runtimeThreadId,
             turnId: input.turnId,
           }),
-          () =>
-            this.db.prepare(
-              `SELECT item_id, payload_json
-               FROM provider_events
-               WHERE thread_id = ? AND turn_id = ? AND method = 'item/completed'
-               ORDER BY created_at DESC;`,
-            ).all(input.runtimeThreadId, input.turnId) as CompletedProviderItemRow[],
         ),
       );
     }
     rowGroups.push(
-      this.runWithEffectSql(
-        listCompletedItemEventsByTurnEffect(input.turnId),
-        () =>
-          this.db.prepare(
-            `SELECT item_id, payload_json
-             FROM provider_events
-             WHERE turn_id = ? AND method = 'item/completed'
-             ORDER BY created_at DESC;`,
-          ).all(input.turnId) as CompletedProviderItemRow[],
-      ),
+      this.runWithEffectSql(listCompletedItemEventsByTurnEffect(input.turnId)),
     );
 
     for (const rows of rowGroups) {
@@ -1427,17 +1292,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private findLatestAssistantMessageIdForThread(threadId: string): string | undefined {
-    const payloads = this.runWithEffectSql(listMessagePayloadsForThreadDescEffect(threadId), () => {
-      const rows = this.db
-        .prepare(
-          `SELECT data_json
-           FROM documents
-           WHERE kind = 'message' AND thread_id = ?
-           ORDER BY sort_key DESC, updated_at DESC;`,
-        )
-        .all(threadId) as Array<{ data_json: string }>;
-      return rows.map((row) => row.data_json);
-    });
+    const payloads = this.runWithEffectSql(listMessagePayloadsForThreadDescEffect(threadId));
 
     for (const payload of payloads) {
       const message = this.parseJson(payload, stateMessageSchema);
@@ -1453,14 +1308,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private listMessagesForThread(threadId: string): StateMessage[] {
-    const payloads = this.runWithEffectSql(listMessagePayloadsForThreadEffect(threadId), () => {
-      const rows = this.db
-        .prepare(
-          "SELECT data_json FROM documents WHERE kind = 'message' AND thread_id = ? ORDER BY sort_key ASC;",
-        )
-        .all(threadId) as Array<{ data_json: string }>;
-      return rows.map((row) => row.data_json);
-    });
+    const payloads = this.runWithEffectSql(listMessagePayloadsForThreadEffect(threadId));
     const messages: StateMessage[] = [];
     for (const payload of payloads) {
       const parsed = this.parseJson(payload, stateMessageSchema);
@@ -1472,14 +1320,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private listTurnSummariesForThread(threadId: string): StateTurnSummary[] {
-    const payloads = this.runWithEffectSql(listTurnSummaryPayloadsForThreadEffect(threadId), () => {
-      const rows = this.db
-        .prepare(
-          "SELECT data_json FROM documents WHERE kind = 'turn_summary' AND thread_id = ? ORDER BY sort_key DESC, updated_at DESC;",
-        )
-        .all(threadId) as Array<{ data_json: string }>;
-      return rows.map((row) => row.data_json);
-    });
+    const payloads = this.runWithEffectSql(listTurnSummaryPayloadsForThreadEffect(threadId));
     const summaries: StateTurnSummary[] = [];
     for (const payload of payloads) {
       const parsed = this.parseJson(payload, stateTurnSummarySchema);
@@ -1502,63 +1343,15 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         updatedAt: input.updatedAt,
         dataJson: JSON.stringify(input.data),
       }),
-      () => {
-        this.db
-          .prepare(
-            `INSERT INTO documents (
-              id,
-              kind,
-              project_id,
-              thread_id,
-              sort_key,
-              schema_version,
-              created_at,
-              updated_at,
-              data_json
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              kind = excluded.kind,
-              project_id = excluded.project_id,
-              thread_id = excluded.thread_id,
-              sort_key = excluded.sort_key,
-              schema_version = excluded.schema_version,
-              updated_at = excluded.updated_at,
-              data_json = excluded.data_json;`,
-          )
-          .run(
-            input.id,
-            input.kind,
-            input.projectId,
-            input.threadId,
-            input.sortKey,
-            input.createdAt,
-            input.updatedAt,
-            JSON.stringify(input.data),
-          );
-      },
     );
   }
 
   private getDocumentRowById(id: string): DocumentRow | null {
-    return this.runWithEffectSql(getDocumentRowByIdEffect(id), () => {
-      const row = this.db
-        .prepare(
-          "SELECT id, kind, project_id, thread_id, sort_key, created_at, updated_at, data_json FROM documents WHERE id = ? LIMIT 1;",
-        )
-        .get(id) as DocumentRow | undefined;
-      return row ?? null;
-    });
+    return this.runWithEffectSql(getDocumentRowByIdEffect(id));
   }
 
   private readNextSortKey(kind: "message" | "turn_summary", threadId: string): number {
-    return this.runWithEffectSql(readNextSortKeyEffect(kind, threadId), () => {
-      const row = this.db
-        .prepare(
-          "SELECT COALESCE(MAX(sort_key), 0) + 1 AS next_sort_key FROM documents WHERE kind = ? AND thread_id = ?;",
-        )
-        .get(kind, threadId) as { next_sort_key: number } | undefined;
-      return row?.next_sort_key ?? 1;
-    });
+    return this.runWithEffectSql(readNextSortKeyEffect(kind, threadId));
   }
 
   private resolveThreadIdForEvent(event: ProviderEvent, runtimeThreadId: string | null): string | null {
@@ -1607,44 +1400,6 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
         payloadJson,
         createdAt: event.createdAt,
       }),
-      () => {
-        const result = this.db
-          .prepare(
-            `INSERT OR IGNORE INTO provider_events (
-              id,
-              session_id,
-              provider,
-              kind,
-              method,
-              thread_id,
-              turn_id,
-              item_id,
-              request_id,
-              request_kind,
-              text_delta,
-              message,
-              payload_json,
-              created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-          )
-          .run(
-            event.id,
-            event.sessionId,
-            event.provider,
-            event.kind,
-            event.method,
-            runtimeThreadId,
-            event.turnId ?? null,
-            event.itemId ?? null,
-            event.requestId ?? null,
-            event.requestKind ?? null,
-            event.textDelta ?? null,
-            event.message ?? null,
-            payloadJson,
-            event.createdAt,
-          ) as { changes?: number | bigint };
-        return toSafeInteger(result.changes, 0);
-      },
     );
     return {
       inserted: changes > 0,
@@ -1689,26 +1444,12 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
   }
 
   private readMetadata(key: string): unknown {
-    return this.runWithEffectSql(readMetadataValueEffect(key), () => {
-      const row = this.db
-        .prepare("SELECT value_json FROM metadata WHERE key = ? LIMIT 1;")
-        .get(key) as { value_json: string } | undefined;
-      if (!row) {
-        return null;
-      }
-      return this.tryParseJson(row.value_json);
-    });
+    return this.runWithEffectSql(readMetadataValueEffect(key));
   }
 
   private writeMetadata(key: string, value: unknown, inTransaction = false): void {
     const write = () => {
-      this.runWithEffectSql(writeMetadataValueEffect(key, value), () => {
-        this.db
-          .prepare(
-            "INSERT INTO metadata (key, value_json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json;",
-          )
-          .run(key, JSON.stringify(value));
-      });
+      this.runWithEffectSql(writeMetadataValueEffect(key, value));
     };
     if (inTransaction) {
       write();
@@ -1719,8 +1460,7 @@ export class PersistenceService extends EventEmitter<PersistenceServiceEvents> {
 
   private runWithEffectSql<A>(
     effect: Effect.Effect<A, unknown, SqlClient.SqlClient>,
-    fallback: () => A,
   ): A {
-    return runWithSqlClient(this.db, effect, fallback);
+    return runWithSqlClient(this.db, effect);
   }
 }
