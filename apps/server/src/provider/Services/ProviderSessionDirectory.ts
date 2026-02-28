@@ -8,7 +8,9 @@
  * @module ProviderSessionDirectory
  */
 import type {
+  ProviderApprovalPolicy,
   ProviderKind,
+  ProviderSandboxMode,
   ProviderSessionId,
   ProviderSessionRuntimeStatus,
   ProviderThreadId,
@@ -30,6 +32,8 @@ export interface ProviderSessionBinding {
   readonly adapterKey?: string;
   readonly providerThreadId?: ProviderThreadId | null;
   readonly status?: ProviderSessionRuntimeStatus;
+  readonly approvalPolicy?: ProviderApprovalPolicy;
+  readonly sandboxMode?: ProviderSandboxMode;
   readonly resumeCursor?: unknown | null;
   readonly runtimePayload?: unknown | null;
 }

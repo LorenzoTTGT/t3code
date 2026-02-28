@@ -7,6 +7,8 @@
  */
 import {
   IsoDateTime,
+  ProviderApprovalPolicy,
+  ProviderSandboxMode,
   ProviderSessionId,
   ProviderSessionRuntimeStatus,
   ProviderThreadId,
@@ -24,6 +26,8 @@ export const ProviderSessionRuntime = Schema.Struct({
   adapterKey: Schema.String,
   providerThreadId: Schema.NullOr(ProviderThreadId),
   status: ProviderSessionRuntimeStatus,
+  approvalPolicy: ProviderApprovalPolicy,
+  sandboxMode: ProviderSandboxMode,
   lastSeenAt: IsoDateTime,
   resumeCursor: Schema.NullOr(Schema.Unknown),
   runtimePayload: Schema.NullOr(Schema.Unknown),

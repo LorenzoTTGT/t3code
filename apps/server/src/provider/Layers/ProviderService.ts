@@ -18,6 +18,8 @@ import {
   ProviderSendTurnInput,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
+  type ProviderApprovalPolicy,
+  type ProviderSandboxMode,
   type ProviderRuntimeEvent,
   type ProviderSession,
 } from "@t3tools/contracts";
@@ -155,6 +157,10 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       session: ProviderSession,
       operation: string,
       threadId: ThreadId,
+      options?: {
+        readonly approvalPolicy?: ProviderApprovalPolicy;
+        readonly sandboxMode?: ProviderSandboxMode;
+      },
     ) =>
       Effect.gen(function* () {
         const providerThreadId = session.threadId;
@@ -171,6 +177,10 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           threadId,
           providerThreadId,
           status: toRuntimeStatus(session),
+          ...(options?.approvalPolicy !== undefined
+            ? { approvalPolicy: options.approvalPolicy }
+            : {}),
+          ...(options?.sandboxMode !== undefined ? { sandboxMode: options.sandboxMode } : {}),
           ...(session.resumeCursor !== undefined ? { resumeCursor: session.resumeCursor } : {}),
           runtimePayload: toRuntimePayloadFromSession(session),
         });
@@ -243,6 +253,8 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         const resumeThreadId = input.binding.providerThreadId ?? undefined;
         const hasResumeCursor =
           input.binding.resumeCursor !== null && input.binding.resumeCursor !== undefined;
+        const persistedApprovalPolicy = input.binding.approvalPolicy;
+        const persistedSandboxMode = input.binding.sandboxMode;
         const existing =
           resumeThreadId === undefined
             ? undefined
@@ -252,6 +264,10 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
             existing,
             `${input.operation}:upsertExistingSession`,
             input.binding.threadId,
+            {
+              ...(persistedApprovalPolicy ? { approvalPolicy: persistedApprovalPolicy } : {}),
+              ...(persistedSandboxMode ? { sandboxMode: persistedSandboxMode } : {}),
+            },
           );
           yield* directory.upsert({
             sessionId: input.staleSessionId,
@@ -285,6 +301,8 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           ...(persistedCwd ? { cwd: persistedCwd } : {}),
           ...(resumeThreadId ? { resumeThreadId } : {}),
           ...(hasResumeCursor ? { resumeCursor: input.binding.resumeCursor } : {}),
+          ...(persistedApprovalPolicy ? { approvalPolicy: persistedApprovalPolicy } : {}),
+          ...(persistedSandboxMode ? { sandboxMode: persistedSandboxMode } : {}),
         });
         if (resumed.provider !== adapter.provider) {
           return yield* toValidationError(
@@ -297,6 +315,10 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           resumed,
           `${input.operation}:upsertRecoveredSession`,
           input.binding.threadId,
+          {
+            ...(persistedApprovalPolicy ? { approvalPolicy: persistedApprovalPolicy } : {}),
+            ...(persistedSandboxMode ? { sandboxMode: persistedSandboxMode } : {}),
+          },
         );
 
         yield* directory.upsert({
@@ -416,7 +438,10 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           );
         }
 
-        yield* upsertSessionBinding(session, "ProviderService.startSession", threadId);
+        yield* upsertSessionBinding(session, "ProviderService.startSession", threadId, {
+          approvalPolicy: input.approvalPolicy,
+          sandboxMode: input.sandboxMode,
+        });
 
         return session;
       });

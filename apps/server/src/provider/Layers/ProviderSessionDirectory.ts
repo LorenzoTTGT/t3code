@@ -1,4 +1,9 @@
-import { ProviderSessionId, type ProviderKind } from "@t3tools/contracts";
+import {
+  ProviderSessionId,
+  type ProviderApprovalPolicy,
+  type ProviderKind,
+  type ProviderSandboxMode,
+} from "@t3tools/contracts";
 import { Effect, Layer, Option } from "effect";
 
 import { ProviderSessionRuntimeRepository } from "../../persistence/Services/ProviderSessionRuntime.ts";
@@ -12,6 +17,9 @@ import {
   type ProviderSessionBinding,
   type ProviderSessionDirectoryShape,
 } from "../Services/ProviderSessionDirectory.ts";
+
+const DEFAULT_APPROVAL_POLICY: ProviderApprovalPolicy = "never";
+const DEFAULT_SANDBOX_MODE: ProviderSandboxMode = "workspace-write";
 
 function toPersistenceError(operation: string) {
   return (cause: unknown) =>
@@ -76,6 +84,8 @@ const makeProviderSessionDirectory = Effect.gen(function* () {
                   adapterKey: value.adapterKey,
                   providerThreadId: value.providerThreadId,
                   status: value.status,
+                  approvalPolicy: value.approvalPolicy,
+                  sandboxMode: value.sandboxMode,
                   resumeCursor: value.resumeCursor,
                   runtimePayload: value.runtimePayload,
                 }),
@@ -113,6 +123,11 @@ const makeProviderSessionDirectory = Effect.gen(function* () {
             ? binding.providerThreadId
             : (existingRuntime?.providerThreadId ?? null),
         status: binding.status ?? existingRuntime?.status ?? "running",
+        approvalPolicy:
+          binding.approvalPolicy ??
+          existingRuntime?.approvalPolicy ??
+          DEFAULT_APPROVAL_POLICY,
+        sandboxMode: binding.sandboxMode ?? existingRuntime?.sandboxMode ?? DEFAULT_SANDBOX_MODE,
         lastSeenAt: now,
         resumeCursor:
           binding.resumeCursor !== undefined

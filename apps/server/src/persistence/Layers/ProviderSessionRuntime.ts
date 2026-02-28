@@ -50,6 +50,8 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
           adapter_key,
           provider_thread_id,
           status,
+          approval_policy,
+          sandbox_mode,
           last_seen_at,
           resume_cursor_json,
           runtime_payload_json
@@ -61,6 +63,8 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
           ${runtime.adapterKey},
           ${runtime.providerThreadId},
           ${runtime.status},
+          ${runtime.approvalPolicy},
+          ${runtime.sandboxMode},
           ${runtime.lastSeenAt},
           ${runtime.resumeCursor},
           ${runtime.runtimePayload}
@@ -72,6 +76,8 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
           adapter_key = excluded.adapter_key,
           provider_thread_id = excluded.provider_thread_id,
           status = excluded.status,
+          approval_policy = excluded.approval_policy,
+          sandbox_mode = excluded.sandbox_mode,
           last_seen_at = excluded.last_seen_at,
           resume_cursor_json = excluded.resume_cursor_json,
           runtime_payload_json = excluded.runtime_payload_json
@@ -90,6 +96,8 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
           adapter_key AS "adapterKey",
           provider_thread_id AS "providerThreadId",
           status,
+          approval_policy AS "approvalPolicy",
+          sandbox_mode AS "sandboxMode",
           last_seen_at AS "lastSeenAt",
           resume_cursor_json AS "resumeCursor",
           runtime_payload_json AS "runtimePayload"
@@ -110,6 +118,8 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
           adapter_key AS "adapterKey",
           provider_thread_id AS "providerThreadId",
           status,
+          approval_policy AS "approvalPolicy",
+          sandbox_mode AS "sandboxMode",
           last_seen_at AS "lastSeenAt",
           resume_cursor_json AS "resumeCursor",
           runtime_payload_json AS "runtimePayload"

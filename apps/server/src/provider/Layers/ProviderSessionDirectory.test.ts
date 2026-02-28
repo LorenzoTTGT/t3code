@@ -118,6 +118,8 @@ it.layer(makeDirectoryLayer(SqlitePersistenceMemory))("ProviderSessionDirectoryL
         threadId,
         providerThreadId,
         status: "starting",
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
         resumeCursor: {
           resumeThreadId: "provider-thread-runtime",
         },
@@ -131,6 +133,8 @@ it.layer(makeDirectoryLayer(SqlitePersistenceMemory))("ProviderSessionDirectoryL
         sessionId,
         provider: "codex",
         status: "running",
+        approvalPolicy: "on-request",
+        sandboxMode: "workspace-write",
         runtimePayload: {
           activeTurnId: "turn-1",
         },
@@ -144,6 +148,8 @@ it.layer(makeDirectoryLayer(SqlitePersistenceMemory))("ProviderSessionDirectoryL
         assert.equal(runtime.value.threadId, threadId);
         assert.equal(runtime.value.providerThreadId, providerThreadId);
         assert.equal(runtime.value.status, "running");
+        assert.equal(runtime.value.approvalPolicy, "on-request");
+        assert.equal(runtime.value.sandboxMode, "workspace-write");
         assert.deepEqual(runtime.value.resumeCursor, {
           resumeThreadId: providerThreadId,
         });

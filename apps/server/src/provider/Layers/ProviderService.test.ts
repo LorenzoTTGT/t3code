@@ -327,6 +327,8 @@ it.effect(
         return yield* provider.startSession(asThreadId("thread-1"), {
           provider: "codex",
           cwd: "/tmp/project",
+          approvalPolicy: "never",
+          sandboxMode: "danger-full-access",
         });
       }).pipe(Effect.provide(firstProviderLayer));
 
@@ -380,6 +382,8 @@ it.effect(
             provider: "codex",
             cwd: "/tmp/project",
             resumeThreadId: startedSession.threadId,
+            approvalPolicy: "never",
+            sandboxMode: "danger-full-access",
           },
         ],
       ]);
@@ -452,6 +456,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
       const initial = yield* provider.startSession(asThreadId("thread-1"), {
         provider: "codex",
         cwd: "/tmp/project",
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
       });
       yield* routing.codex.stopSession(initial.sessionId);
       routing.codex.startSession.mockClear();
@@ -468,6 +474,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
             provider: "codex",
             cwd: "/tmp/project",
             resumeThreadId: initial.threadId,
+            approvalPolicy: "never",
+            sandboxMode: "danger-full-access",
           },
         ],
       ]);
@@ -484,6 +492,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
       const initial = yield* provider.startSession(asThreadId("thread-1"), {
         provider: "codex",
         cwd: "/tmp/project-send-turn",
+        approvalPolicy: "never",
+        sandboxMode: "danger-full-access",
       });
 
       yield* provider.stopAll();
@@ -502,6 +512,8 @@ routing.layer("ProviderServiceLive routing", (it) => {
             provider: "codex",
             cwd: "/tmp/project-send-turn",
             resumeThreadId: initial.threadId,
+            approvalPolicy: "never",
+            sandboxMode: "danger-full-access",
           },
         ],
       ]);
