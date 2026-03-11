@@ -6,8 +6,14 @@ import { Effect, Layer } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 
 import { ServerConfig } from "./config";
-import { makeRoutesLayer } from "./httpRouter";
+import { attachmentsRouteLayer, healthRouteLayer, staticAndDevRouteLayer } from "./http";
 import { fixPath } from "./os-jank";
+
+export const makeRoutesLayer = Layer.mergeAll(
+  healthRouteLayer,
+  attachmentsRouteLayer,
+  staticAndDevRouteLayer,
+);
 
 export const makeServerLayer = Layer.unwrap(
   Effect.gen(function* () {
