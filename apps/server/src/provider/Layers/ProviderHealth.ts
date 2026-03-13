@@ -26,6 +26,7 @@ import { ProviderHealth, type ProviderHealthShape } from "../Services/ProviderHe
 
 const DEFAULT_TIMEOUT_MS = 4_000;
 const CODEX_PROVIDER = "codex" as const;
+const CLAUDE_CODE_PROVIDER = "claudeCode" as const;
 
 // ── Pure helpers ────────────────────────────────────────────────────
 
@@ -390,6 +391,156 @@ export const checkCodexProviderStatus: Effect.Effect<
   } satisfies ServerProviderStatus;
 });
 
+// ── Claude Code health check ────────────────────────────────────────
+
+const runClaudeCommand = (args: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const command = ChildProcess.make("claude", [...args], {
+      shell: process.platform === "win32",
+    });
+
+    const child = yield* spawner.spawn(command);
+
+    const [stdout, stderr, exitCode] = yield* Effect.all(
+      [
+        collectStreamAsString(child.stdout),
+        collectStreamAsString(child.stderr),
+        child.exitCode.pipe(Effect.map(Number)),
+      ],
+      { concurrency: "unbounded" },
+    );
+
+    return { stdout, stderr, code: exitCode } satisfies CommandResult;
+  }).pipe(Effect.scoped);
+
+export const checkClaudeCodeProviderStatus: Effect.Effect<
+  ServerProviderStatus,
+  never,
+  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+> = Effect.gen(function* () {
+  const checkedAt = new Date().toISOString();
+
+  // Probe 1: `claude --version` — is the CLI reachable?
+  const versionProbe = yield* runClaudeCommand(["--version"]).pipe(
+    Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
+    Effect.result,
+  );
+
+  if (Result.isFailure(versionProbe)) {
+    const error = versionProbe.failure;
+    const lower =
+      error instanceof Error ? error.message.toLowerCase() : "";
+    const notInstalled =
+      lower.includes("command not found") ||
+      lower.includes("enoent") ||
+      lower.includes("notfound");
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: notInstalled
+        ? "Claude Code CLI (`claude`) is not installed or not on PATH."
+        : `Failed to execute Claude Code CLI health check: ${error instanceof Error ? error.message : String(error)}.`,
+    };
+  }
+
+  if (Option.isNone(versionProbe.success)) {
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message:
+        "Claude Code CLI is installed but timed out during version check.",
+    };
+  }
+
+  const version = versionProbe.success.value;
+  if (version.code !== 0) {
+    const detail = detailFromResult(version);
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: detail
+        ? `Claude Code CLI is installed but failed to run. ${detail}`
+        : "Claude Code CLI is installed but failed to run.",
+    };
+  }
+
+  // Probe 2: `claude auth status` — is the user authenticated?
+  const authProbe = yield* runClaudeCommand(["auth", "status"]).pipe(
+    Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
+    Effect.result,
+  );
+
+  if (Result.isFailure(authProbe)) {
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "warning" as const,
+      available: true,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: "Claude Code CLI is installed but could not verify authentication status.",
+    };
+  }
+
+  if (Option.isNone(authProbe.success)) {
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "warning" as const,
+      available: true,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: "Could not verify Claude Code authentication status. Timed out.",
+    };
+  }
+
+  const authResult = authProbe.success.value;
+  const authOutput = `${authResult.stdout}\n${authResult.stderr}`.toLowerCase();
+
+  if (authResult.code === 0 && !authOutput.includes("not logged in") && !authOutput.includes("not authenticated")) {
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "ready" as const,
+      available: true,
+      authStatus: "authenticated" as const,
+      checkedAt,
+    };
+  }
+
+  if (
+    authOutput.includes("not logged in") ||
+    authOutput.includes("not authenticated") ||
+    authOutput.includes("login required")
+  ) {
+    return {
+      provider: CLAUDE_CODE_PROVIDER,
+      status: "error" as const,
+      available: true,
+      authStatus: "unauthenticated" as const,
+      checkedAt,
+      message: "Claude Code CLI is not authenticated. Run `claude login` and try again.",
+    };
+  }
+
+  // Fallback: CLI is available, auth status unclear
+  return {
+    provider: CLAUDE_CODE_PROVIDER,
+    status: "ready" as const,
+    available: true,
+    authStatus: "unknown" as const,
+    checkedAt,
+    message: "Claude Code CLI is available.",
+  };
+});
+
 // ── Layer ───────────────────────────────────────────────────────────
 
 export const ProviderHealthLive = Layer.effect(
@@ -399,9 +550,17 @@ export const ProviderHealthLive = Layer.effect(
       Effect.map(Array.of),
       Effect.forkScoped,
     );
+    const claudeCodeStatusFiber = yield* checkClaudeCodeProviderStatus.pipe(
+      Effect.map(Array.of),
+      Effect.forkScoped,
+    );
 
     return {
-      getStatuses: Fiber.join(codexStatusFiber),
+      getStatuses: Effect.gen(function* () {
+        const codexStatuses = yield* Fiber.join(codexStatusFiber);
+        const claudeCodeStatuses = yield* Fiber.join(claudeCodeStatusFiber);
+        return [...codexStatuses, ...claudeCodeStatuses];
+      }),
     } satisfies ProviderHealthShape;
   }),
 );
