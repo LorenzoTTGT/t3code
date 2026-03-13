@@ -11,8 +11,15 @@ export function useCopyToClipboard<TContext = void>({
 } = {}): { copyToClipboard: (value: string, ctx: TContext) => void; isCopied: boolean } {
   const [isCopied, setIsCopied] = React.useState(false);
   const timeoutIdRef = React.useRef<NodeJS.Timeout | null>(null);
+  const onCopyRef = React.useRef(onCopy);
+  const onErrorRef = React.useRef(onError);
+  const timeoutRef = React.useRef(timeout);
 
-  const copyToClipboard = (value: string, ctx: TContext): void => {
+  onCopyRef.current = onCopy;
+  onErrorRef.current = onError;
+  timeoutRef.current = timeout;
+
+  const copyToClipboard = React.useCallback((value: string, ctx: TContext): void => {
     if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
       return;
     }
@@ -26,26 +33,24 @@ export function useCopyToClipboard<TContext = void>({
         }
         setIsCopied(true);
 
-        if (onCopy) {
-          onCopy(ctx);
-        }
+        onCopyRef.current?.(ctx);
 
-        if (timeout !== 0) {
+        if (timeoutRef.current !== 0) {
           timeoutIdRef.current = setTimeout(() => {
             setIsCopied(false);
             timeoutIdRef.current = null;
-          }, timeout);
+          }, timeoutRef.current);
         }
       },
       (error) => {
-        if (onError) {
-          onError(error, ctx);
+        if (onErrorRef.current) {
+          onErrorRef.current(error, ctx);
         } else {
           console.error(error);
         }
       },
     );
-  };
+  }, []);
 
   // Cleanup timeout on unmount
   React.useEffect(() => {
